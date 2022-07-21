@@ -21,9 +21,6 @@ class Board:
     BQ = 0
     BK = 0
     
-    BLACK_PIECES = 0
-    WHITE_PIECES = 0
-
     MY_PIECES = 0
     NOT_MY_PIECES =  0
 
@@ -273,11 +270,11 @@ class Board:
         self.MY_PIECES = self.WP|self.WN|self.WB|self.WR|self.WQ
         self.OCCUPIED=self.WP|self.WN|self.WB|self.WR|self.WQ|self.WK|self.BP|self.BN|self.BB|self.BR|self.BQ|self.BK
         self.EMPTY=~self.OCCUPIED
-        self.getMovesB(self.WB)
-        self.getMovesN(self.WN)
-        self.getMovesQ(self.WQ)
-        self.getMovesR(self.WR)
-        self.getMovesK(self.WK)
+        self.getMovesB()
+        self.getMovesN()
+        self.getMovesQ()
+        self.getMovesR()
+        self.getMovesK()
         self.getMovesP()
         return self.moves
 
@@ -290,114 +287,167 @@ class Board:
         self.MY_PIECES=self.BP|self.BN|self.BB|self.BR|self.BQ
         self.OCCUPIED=self.WP|self.WN|self.WB|self.WR|self.WQ|self.WK|self.BP|self.BN|self.BB|self.BR|self.BQ|self.BK
         self.EMPTY=~self.OCCUPIED
-        self.getMovesB(self.BB)
-        self.getMovesN(self.BN)
-        self.getMovesQ(self.BQ)
-        self.getMovesR(self.BR)
-        self.getMovesK(self.BK)
+        self.getMovesB()
+        self.getMovesN()
+        self.getMovesQ()
+        self.getMovesR()
+        self.getMovesK()
         self.getMovesP()
         return self.moves 
 
     
     def getMovesP(self):
         # exluding black king, because he can't be eaten
-        self.BLACK_PIECES = (self.BP | self.BN | self.BB | self.BR | self.BQ)
+        BLACK_PIECES = (self.BP | self.BN | self.BB | self.BR | self.BQ)
         
         # same here
-        self.WHITE_PIECES = self.WP | self.WN | self.WB | self.WR | self.WQ
-
+        WHITE_PIECES = self.WP | self.WN | self.WB | self.WR | self.WQ
 
         # beat right
         if self.isWhiteTurn:
-            PAWN_MOVES = (self.WP >> 7) & self.BLACK_PIECES & int(~FILE_A)
-            PAWN_MOVES_PROMO = (self.WP >> 7) & self.BLACK_PIECES & int(RANK_8 & ~FILE_A)
+            PAWN_MOVES = (self.WP >> 7) & BLACK_PIECES & int(~RANK_8 & ~FILE_A)
+            PAWN_MOVES_PROMO = (self.WP >> 7) & BLACK_PIECES & self.OCCUPIED & int(RANK_8 & ~FILE_A)
             color = 1
             type = 'P' 
         else: 
-            PAWN_MOVES = (self.BP << 7) & self.WHITE_PIECES  & int(~FILE_H)
-            PAWN_MOVES_PROMO = (self.BP << 7) & self.WHITE_PIECES & int(RANK_1 & ~FILE_H)
+            PAWN_MOVES = (self.BP << 7) & WHITE_PIECES  & int(~RANK_1 & ~FILE_H)
+            PAWN_MOVES_PROMO = (self.BP << 7) & WHITE_PIECES & self.OCCUPIED & int(RANK_1 & ~FILE_H)
             color = -1
             type = 'p'
-
-        for i in range(64):
-            isPromo = False 
+        
+        # beat right normal
+        possibility = PAWN_MOVES&~(PAWN_MOVES-1)
+        while possibility != 0:
             move = {}
-            if (PAWN_MOVES_PROMO >> i) & 1 == 1:
-                move['isPromo'] = True
-                isPromo = True
-            if (PAWN_MOVES >> i) & 1  == 1 :
-                move['toString'] = makeField((i//8)+(color*1), (i % 8)-(color*1)) + "x" + makeField((i//8), i % 8)
-                move['from'] = (((i//8)+(color*1))*8+((i % 8)-(color*1)))
-                move['to'] = ((i//8)*8 + (i % 8))
-                move['type'] = type
-                if isPromo:
-                    self.promoHelper(self.isWhiteTurn, move)
-                else:
-                    self.moves.append(move)
+            i = trailingZeros(possibility)
+            destination = ((i//8)*8 + (i % 8))
+            move['toString'] = makeField((i//8)+(color*1), (i % 8)-(color*1)) + "x" + makeField((i//8), i % 8)
+            move['from'] = (((i//8)+(color*1))*8+((i % 8)-(color*1)))
+            move['to'] = destination
+            move['type'] = type
+            move['score'] = self.evaluateMove(self.isWhiteTurn, 1, destination)
+            self.moves.append(move)
+
+            PAWN_MOVES&=~possibility
+            possibility=PAWN_MOVES&~(PAWN_MOVES-1)
+
+        # beat right with promo
+        possibility = PAWN_MOVES_PROMO&~(PAWN_MOVES_PROMO-1)
+        while possibility != 0:
+            move = {}
+            i = trailingZeros(possibility)
+            destination = ((i//8)*8 + (i % 8))
+            move['toString'] = makeField((i//8)+(color*1), (i % 8)-(color*1)) + "x" + makeField((i//8), i % 8)
+            move['from'] = (((i//8)+(color*1))*8+((i % 8)-(color*1)))
+            move['to'] = destination
+            move['type'] = type
+            move['isPromo'] = True
+            move['score'] = self.evaluateMove(self.isWhiteTurn, 1, destination) + 10
+            self.promoHelper(self.isWhiteTurn, move)
+
+            PAWN_MOVES_PROMO&=~possibility
+            possibility=PAWN_MOVES_PROMO&~(PAWN_MOVES_PROMO-1)
 
         # beat left
         if self.isWhiteTurn:
-            PAWN_MOVES = (self.WP >> 9) & self.BLACK_PIECES  & int(~FILE_H)
-            PAWN_MOVES_PROMO = (self.WP >> 9) & self.BLACK_PIECES & int(RANK_8 & ~FILE_H)
+            PAWN_MOVES = (self.WP >> 9) & BLACK_PIECES  & int(~RANK_8 & ~FILE_H)
+            PAWN_MOVES_PROMO = (self.WP >> 9) & BLACK_PIECES & self.OCCUPIED & int(RANK_8 & ~FILE_H)
         else:
-            PAWN_MOVES = (self.BP << 9) & self.WHITE_PIECES  & int(~FILE_A)
-            PAWN_MOVES_PROMO = (self.BP << 9) & self.WHITE_PIECES & int(RANK_1 & ~FILE_A)
-
-        for i in range(64):
+            PAWN_MOVES = (self.BP << 9) & WHITE_PIECES  & int(~RANK_1 & ~FILE_A)
+            PAWN_MOVES_PROMO = (self.BP << 9) & WHITE_PIECES & self.OCCUPIED & int(RANK_1 & ~FILE_A)
+        
+        # beat left normal
+        possibility = PAWN_MOVES&~(PAWN_MOVES-1)
+        while possibility != 0:
             move = {}
-            isPromo = False
-            if (PAWN_MOVES_PROMO >> i) & 1 == 1:
-                move['isPromo'] = True
-                isPromo = True
-            if (PAWN_MOVES >> i) & 1 == 1:
-                move['toString'] = makeField((i//8)+(color*1), (i % 8)+(color*1)) + "x"+makeField((i//8), i % 8)
-                move['from'] = (((i//8)+(color*1))*8+((i % 8)+(color*1))) 
-                move['to'] = ((i//8)*8+(i % 8))
-                move['type'] = type
-                if isPromo:
-                    self.promoHelper(self.isWhiteTurn, move)
-                else:
-                    self.moves.append(move)
+            i = trailingZeros(possibility)
+            destination = ((i//8)*8+(i % 8))
+            move['toString'] = makeField((i//8)+(color*1), (i % 8)+(color*1)) + "x"+makeField((i//8), i % 8)
+            move['from'] = (((i//8)+(color*1))*8+((i % 8)+(color*1))) 
+            move['to'] = destination
+            move['type'] = type
+            move['score'] = self.evaluateMove(self.isWhiteTurn, 1, destination)
+            self.moves.append(move)
+
+            PAWN_MOVES&=~possibility
+            possibility=PAWN_MOVES&~(PAWN_MOVES-1)
+        
+        # beat left promo
+        possibility = PAWN_MOVES_PROMO&~(PAWN_MOVES_PROMO-1)
+        while possibility != 0:
+            move = {}
+            i = trailingZeros(possibility)
+            destination = ((i//8)*8+(i % 8))
+            move['toString'] = makeField((i//8)+(color*1), (i % 8)+(color*1)) + "x"+makeField((i//8), i % 8)
+            move['from'] = (((i//8)+(color*1))*8+((i % 8)+(color*1))) 
+            move['to'] = destination
+            move['type'] = type
+            move['isPromo'] = True
+            move['score'] = self.evaluateMove(self.isWhiteTurn, 1, destination) + 10
+            self.promoHelper(self.isWhiteTurn, move)
+
+            PAWN_MOVES_PROMO&=~possibility
+            possibility=PAWN_MOVES_PROMO&~(PAWN_MOVES_PROMO-1)
 
         # move 1 forward
         if self.isWhiteTurn:
-            PAWN_MOVES = (self.WP >> 8) & self.EMPTY 
+            PAWN_MOVES = (self.WP >> 8) & self.EMPTY & int(~RANK_8)
             PAWN_MOVES_PROMO = (self.WP >> 8) & self.EMPTY & int(RANK_8)
         else:
-            PAWN_MOVES = (self.BP << 8) & self.EMPTY
+            PAWN_MOVES = (self.BP << 8) & self.EMPTY & int(~RANK_1)
             PAWN_MOVES_PROMO = (self.BP << 8) & self.EMPTY & int(RANK_1)
-
-        for i in range(64):
+        
+        # move 1 forward normal
+        possibility = PAWN_MOVES&~(PAWN_MOVES-1)
+        while possibility != 0:
+            i = trailingZeros(possibility)
             move = {}
-            isPromo = False
-            if (PAWN_MOVES_PROMO >> i) & 1 == 1:
-                move['isPromo'] = True
-                isPromo = True
-            if (PAWN_MOVES >> i) & 1 == 1:
-                move['toString'] = makeField((i//8)+(color*1), (i % 8)) + "-"+makeField((i//8), i % 8)
-                move['from'] = (((i//8)+(color*1))*8+(i % 8))
-                move['to'] = ((i//8)*8+(i%8))
-                move['type'] = type
-                if isPromo:
-                    self.promoHelper(self.isWhiteTurn, move)
-                else:
-                    self.moves.append(move)
+            move['toString'] = makeField((i//8)+(color*1), (i % 8))+makeField((i//8), i % 8)
+            move['from'] = (((i//8)+(color*1))*8+(i % 8))
+            move['to'] = ((i//8)*8+(i%8))
+            move['type'] = type
+            move['score'] = 0
+            self.moves.append(move)
+
+            PAWN_MOVES&=~possibility
+            possibility=PAWN_MOVES&~(PAWN_MOVES-1)
+
+        # move 1 forward promo
+        possibility = PAWN_MOVES_PROMO&~(PAWN_MOVES_PROMO-1)
+        while possibility != 0:
+            i = trailingZeros(possibility)
+            move = {}
+            move['toString'] = makeField((i//8)+(color*1), (i % 8))+makeField((i//8), i % 8)
+            move['from'] = (((i//8)+(color*1))*8+(i % 8))
+            move['to'] = ((i//8)*8+(i%8))
+            move['type'] = type
+            move['isPromo'] = True
+            move['score'] = 10
+            self.promoHelper(self.isWhiteTurn, move)
+
+            PAWN_MOVES_PROMO&=~possibility
+            possibility=PAWN_MOVES_PROMO&~(PAWN_MOVES_PROMO-1)
 
         # move 2 forward
         if self.isWhiteTurn:
             PAWN_MOVES = (self.WP >> 16) & self.EMPTY & (self.EMPTY >> 8) & int(RANK_4)
         else:
             PAWN_MOVES = (self.BP << 16) & self.EMPTY & (self.EMPTY << 8) & int(RANK_5)
-
-        for i in range(64):
+        
+        possibility = PAWN_MOVES&~(PAWN_MOVES-1)
+        while possibility != 0:
+            i = trailingZeros(possibility)
             move = {}
-            if (PAWN_MOVES >> i) & 1 == 1:
-                move['toString'] = makeField((i//8)+(color*2), (i % 8)) + "-"+makeField((i//8), i % 8)
-                move['from'] = (((i//8)+(color*2))*8+(i%8))
-                move['to'] = ((i//8)*8+(i % 8))
-                move['type'] = type
-                move['double'] = makeField((i//8)+(color*1), i % 8)
-                self.moves.append(move)
+            move['toString'] = makeField((i//8)+(color*2), (i % 8))+makeField((i//8), i % 8)
+            move['from'] = (((i//8)+(color*2))*8+(i%8))
+            move['to'] = ((i//8)*8+(i % 8))
+            move['type'] = type
+            move['double'] = makeField((i//8)+(color*1), i % 8)
+            move['score'] = 0
+            self.moves.append(move)
+
+            PAWN_MOVES&=~possibility
+            possibility=PAWN_MOVES&~(PAWN_MOVES-1)
 
         if self.enPassant != '-':
             RANK = FileMasks8[self.enPassant[0]]
@@ -408,20 +458,25 @@ class Board:
             else:
                 PAWN_MOVES = (self.BP >> 1) & self.WP & int(RANK_4 & ~FILE_H & RANK)
             
-            for i in range(64):
+            possibility = PAWN_MOVES&~(PAWN_MOVES-1)
+            while possibility != 0:
                 move = {}
-                if (PAWN_MOVES >> i) & 1 == 1:
-                    move['toString'] = makeField((i//8), i % 8-(color*1))+'x'+makeField((i//8)-(color*1), i % 8)
-                    move['from'] = (((i//8)*8)+(i%8-(color*1)))
-                    move['to'] = (((i//8)-(color*1))*8+(i % 8))
-                    move['type'] = type
-                    move['enPassant'] = True
-                    if self.isWhiteTurn:
-                        destination = (((((i//8)-(color*1))+1)*8)+(i % 8))
-                    else:
-                        destination = (((((i//8)-(color*1))-1)*8)+(i % 8))
-                    move['enemy'] = destination
-                    self.moves.append(move)
+                i = trailingZeros(possibility)
+                if self.isWhiteTurn:
+                    destination = (((((i//8)-(color*1))+1)*8)+(i % 8))
+                else:
+                    destination = (((((i//8)-(color*1))-1)*8)+(i % 8))
+                move['toString'] = makeField((i//8), i % 8-(color*1))+'x'+makeField((i//8)-(color*1), i % 8)
+                move['from'] = (((i//8)*8)+(i%8-(color*1)))
+                move['to'] = (((i//8)-(color*1))*8+(i % 8))
+                move['type'] = type
+                move['enPassant'] = True
+                move['enemy'] = destination
+                move['score'] = self.evaluateMove(self.isWhiteTurn, 1, destination)
+                self.moves.append(move)
+
+                PAWN_MOVES_PROMO&=~possibility
+                possibility=PAWN_MOVES_PROMO&~(PAWN_MOVES_PROMO-1)
 
             # en passant left
             if self.isWhiteTurn:
@@ -429,34 +484,51 @@ class Board:
             else:
                 PAWN_MOVES = (self.BP << 1) & self.WP & int(RANK_4 & ~FILE_A & RANK)
 
-            for i in range(64):
+            possibility = PAWN_MOVES&~(PAWN_MOVES-1)
+            while possibility != 0:
                 move = {}
-                if (PAWN_MOVES >> i) & 1 == 1:
-                    move['toString'] = makeField((i//8), i % 8+(color*1))+'x'+ makeField((i//8) -(color*1), i % 8)
-                    move['from'] = (((i//8)*8)+(i % 8+(color*1)))
-                    move['to'] = (((i//8)-(color*1))*8+(i % 8))
-                    move['type'] = type
-                    move['enPassant'] = True
-                    if self.isWhiteTurn:
-                        destination = (((((i//8)-(color*1))+1)*8)+(i % 8))
-                    else:
-                        destination = (((((i//8)-(color*1))-1)*8)+(i % 8))
-                    move['enemy'] = destination
-                    self.moves.append(move)
+                i = trailingZeros(possibility)
+                if self.isWhiteTurn:
+                    destination = (((((i//8)-(color*1))+1)*8)+(i % 8))
+                else:
+                    destination = (((((i//8)-(color*1))-1)*8)+(i % 8))
+                move['toString'] = makeField((i//8), i % 8+(color*1))+'x'+ makeField((i//8) -(color*1), i % 8)
+                move['from'] = (((i//8)*8)+(i % 8+(color*1)))
+                move['to'] = (((i//8)-(color*1))*8+(i % 8))
+                move['type'] = type
+                move['enPassant'] = True
+                move['enemy'] = destination
+                move['score'] = self.evaluateMove(self.isWhiteTurn, 1, destination)
+                self.moves.append(move)
+
+                PAWN_MOVES_PROMO&=~possibility
+                possibility=PAWN_MOVES_PROMO&~(PAWN_MOVES_PROMO-1)
 
     
     def promoHelper(self, isWhiteTurn:bool ,move):
+        type = 'R' if isWhiteTurn else 'r'
         moveR = copy(move)
-        moveR['promoType'] = 'R' if isWhiteTurn else 'r'
+        moveR['promoType'] = type
+        moveR['toString'] += type
+        moveR['score'] += 5
         self.moves.append(moveR)
+        type = 'Q' if isWhiteTurn else 'q' 
         moveQ = copy(move)
-        moveQ['promoType'] = 'Q' if isWhiteTurn else 'q'
+        moveQ['promoType'] = type
+        moveQ['toString'] += type
+        moveQ['score'] += 9
         self.moves.append(moveQ)
+        type = 'B' if isWhiteTurn else 'b'
         moveB = copy(move)
-        moveB['promoType'] = 'B' if isWhiteTurn else 'b'
+        moveB['promoType'] = type
+        moveB['toString'] += type
+        moveB['score'] += 3
         self.moves.append(moveB)
+        type = 'N' if isWhiteTurn else 'n'
         moveN = copy(move)
-        moveN['promoType'] = 'N' if isWhiteTurn else 'n'
+        moveN['promoType'] = type
+        moveN['toString'] += type
+        moveN['score'] += 3
         self.moves.append(moveN)
 
     def HAndVMoves(self, s, OCCUPIED_CUSTOM = None):
@@ -516,23 +588,28 @@ class Board:
         occ = FILE_A * FIRST_RANK_MOVES[f][occ] # lookup and map back to antidiagonal
         return int(AntiDiagonalMasks8[(i // 8) + 7 - (i % 8)] & occ)
     
-    def getMovesB(self, B):
+    def getMovesB(self):
         if self.isWhiteTurn:
             type = 'B'
+            B = self.WB
         else:
             type = 'b'
+            B = self.BB
         i = B&~(B-1)
         while(i != 0):
-            iLocation = trailingZeros(i)
-            possibility = self.DAndAntiDMoves(iLocation) & self.NOT_MY_PIECES
+            bLocation = trailingZeros(i)
+            possibility = self.DAndAntiDMoves(bLocation) & self.NOT_MY_PIECES
             j = possibility & ~(possibility-1)
             while (j != 0):
                 move = {}
                 index = trailingZeros(j)
-                move['toString'] = "B"+makeField((iLocation//8),iLocation%8)+'-'+makeField((index//8),index%8)
-                move['from'] = (((iLocation//8)*8)+(iLocation%8))
-                move['to'] = (((index//8)*8)+(index%8))
+                destination = (((index//8)*8)+(index%8))
+                score = self.evaluateMove(self.isWhiteTurn, 3, destination)
+                move['toString'] = "B"+makeField((bLocation//8),bLocation%8)+('x'if score !=0 else '')+makeField((index//8),index%8)
+                move['from'] = (((bLocation//8)*8)+(bLocation%8))
+                move['to'] = destination
                 move['type'] = type
+                move['score'] = score
                 self.moves.append(move)
 
                 possibility&=~j
@@ -540,23 +617,28 @@ class Board:
             B &= ~i
             i = B&~(B-1)
     
-    def getMovesR(self, R):
+    def getMovesR(self):
         if self.isWhiteTurn:
             type = 'R'
+            R = self.WR
         else:
             type = 'r'
+            R = self.BR
         i = R&~(R-1)
         while(i != 0):
-            iLocation = trailingZeros(i)
-            possibility = self.HAndVMoves(iLocation) & self.NOT_MY_PIECES
+            rLocation = trailingZeros(i)
+            possibility = self.HAndVMoves(rLocation) & self.NOT_MY_PIECES
             j = possibility & ~(possibility-1)
             while (j != 0):
                 move = {}
                 index = trailingZeros(j)
-                move['toString'] = "R"+makeField((iLocation//8),iLocation%8)+'-'+makeField((index//8),index%8)
-                move['from'] = (((iLocation//8)*8)+(iLocation%8))
-                move['to'] = (((index//8)*8)+(index%8))
+                destination = (((index//8)*8)+(index%8))
+                score = self.evaluateMove(self.isWhiteTurn, 5, destination)
+                move['toString'] = "R"+makeField((rLocation//8),rLocation%8)+('x'if score !=0 else '')+makeField((index//8),index%8)
+                move['from'] = (((rLocation//8)*8)+(rLocation%8))
+                move['to'] = destination
                 move['type'] = type
+                move['score'] = score
                 self.moves.append(move)      
 
                 possibility&=~j
@@ -564,23 +646,28 @@ class Board:
             R &= ~i
             i = R&~(R-1)
     
-    def getMovesQ(self, Q):
+    def getMovesQ(self):
         if self.isWhiteTurn:
             type = 'Q'
+            Q = self.WQ
         else:
             type = 'q'
+            Q = self.BQ
         i = Q&~(Q-1)
         while(i != 0):
-            iLocation = trailingZeros(i)
-            possibility = (self.DAndAntiDMoves(iLocation) | self.HAndVMoves(iLocation) )& self.NOT_MY_PIECES
+            qLocation = trailingZeros(i)
+            possibility = (self.DAndAntiDMoves(qLocation) | self.HAndVMoves(qLocation) )& self.NOT_MY_PIECES
             j = possibility & ~(possibility-1)
             while (j != 0):
                 move = {}
                 index = trailingZeros(j)
-                move['toString'] = "Q"+makeField((iLocation//8),iLocation%8)+'-'+makeField((index//8),index%8)
-                move['from'] = (((iLocation//8)*8)+(iLocation%8))
-                move['to'] = (((index//8)*8)+(index%8))
+                destination = (((index//8)*8)+(index%8))
+                score = self.evaluateMove(self.isWhiteTurn, 9, destination)
+                move['toString'] = "Q"+makeField((qLocation//8),qLocation%8)+('x'if score !=0 else '')+makeField((index//8),index%8)
+                move['from'] = (((qLocation//8)*8)+(qLocation%8))
+                move['to'] = destination
                 move['type'] = type
+                move['score'] = score
                 self.moves.append(move)
 
                 possibility&=~j
@@ -589,30 +676,35 @@ class Board:
             i = Q&~(Q-1)
 
 
-    def getMovesN(self, N):  
+    def getMovesN(self):  
         if self.isWhiteTurn:
             type = 'N'
+            N = self.WN
         else:
-            type = 'n'  
+            type = 'n'
+            N = self.BN  
         i = N &~(N - 1)
         while i != 0:
-            iLoc = trailingZeros(i)
-            if iLoc >  18:
-                possibility = KNIGHT_SPAN << (iLoc-18)
+            nLoc = trailingZeros(i)
+            if nLoc >  18:
+                possibility = KNIGHT_SPAN << (nLoc-18)
             else:
-                possibility = KNIGHT_SPAN >> (18 - iLoc)
-            if iLoc%8 < 4:
+                possibility = KNIGHT_SPAN >> (18 - nLoc)
+            if nLoc%8 < 4:
                 possibility &= int(~FILE_GH) & self.NOT_MY_PIECES
             else:
                 possibility &= int(~FILE_AB) & self.NOT_MY_PIECES
             j = possibility &~(possibility-1)
             while j != 0:
-                index = trailingZeros(j) 
                 move = {}
-                move['toString'] = "N"+makeField((iLoc//8),iLoc%8)+'-'+makeField((index//8),index%8)
-                move['from'] = (((iLoc//8)*8)+(iLoc%8))
-                move['to'] = (((index//8)*8)+(index%8))
+                index = trailingZeros(j) 
+                destination = (((index//8)*8)+(index%8))
+                score = self.evaluateMove(self.isWhiteTurn, 3, destination)
+                move['toString'] = "N"+makeField((nLoc//8),nLoc%8)+('x' if score!=0 else '')+makeField((index//8),index%8)
+                move['from'] = (((nLoc//8)*8)+(nLoc%8))
+                move['to'] = destination
                 move['type'] = type
+                move['score'] = score
                 self.moves.append(move) 
 
                 possibility&=~j
@@ -620,27 +712,29 @@ class Board:
             N &=~i
             i = N &~(N-1)
     
-    def getMovesK(self, K):
+    def getMovesK(self):
         if self.isWhiteTurn:
             type = 'K'
+            K = self.WK
             castleRightK = self.castleRight & K_Flag
             castleRightQ = self.castleRight & Q_Flag
             castleK = CASTLE_MASKS['K']
             castleQ = CASTLE_MASKS['Q']
         else:
             type = 'k'
+            K = self.BK
             castleRightK = self.castleRight & k_Flag
             castleRightQ = self.castleRight & q_Flag
             castleK = CASTLE_MASKS['k']
             castleQ = CASTLE_MASKS['q']
 
         isWhiteKing = K & self.WK > 0 
-        iLoc = trailingZeros(K)
-        if iLoc >  9:
-            possibility = KING_SPAN << (iLoc-9)
+        kLoc = trailingZeros(K)
+        if kLoc >  9:
+            possibility = KING_SPAN << (kLoc-9)
         else:
-            possibility = KING_SPAN >> (9 - iLoc)
-        if iLoc%8 < 4:
+            possibility = KING_SPAN >> (9 - kLoc)
+        if kLoc%8 < 4:
             possibility &= int(~FILE_GH) & self.NOT_MY_PIECES
         else:
             possibility &= int(~FILE_AB) & self.NOT_MY_PIECES
@@ -652,22 +746,27 @@ class Board:
             move['toString'] = "0-0"
             move['type'] = type
             move['castle'] = "k"
+            move['score'] = 9
             self.moves.append(move)
         if castleRightQ and castleQ & safe & self.EMPTY == castleQ :
             move = {}
             move['toString'] = "0-0-0"
             move['type'] = type
             move['castle'] = "q"
+            move['score'] = 9
             self.moves.append(move)
             
         while j != 0:
             if j & safe != 0: #filters out unsafe fields
                 index = trailingZeros(j) 
                 move = {}
-                move['toString'] = "K"+makeField((iLoc//8),iLoc%8)+'-'+makeField((index//8),index%8)
-                move['from'] = (((iLoc//8)*8)+(iLoc%8))
-                move['to'] = (((index//8)*8)+(index%8))
+                destination = (((index//8)*8)+(index%8))
+                score = self.evaluateMove(self.isWhiteTurn, 9, destination)
+                move['toString'] = "K"+makeField((kLoc//8),kLoc%8)+('x'if score !=0 else '')+makeField((index//8),index%8)
+                move['from'] = (((kLoc//8)*8)+(kLoc%8))
+                move['to'] = destination
                 move['type'] = type
+                move['score'] = score
                 self.moves.append(move)
             possibility&=~j
             j=possibility&~(possibility-1)
@@ -755,46 +854,31 @@ class Board:
         for move in moves:
             type = move['type']
             if type == 'K' or type == 'k':
-                if not move.get('castle'):
-                    move['score'] = self.evaluateMove(self.isWhiteTurn, 9, move['to'])
-                else:
-                    move['score'] = 1
                 newMoves.append(move)
             else:
                 ownValue = 0
                 if type == 'P':
-                    ownValue = 1
                     newBoard = self.WB | self.WK | self.WN | self.WQ | self.WR | self.doMoveHelper(move, self.WP)
                 elif type == 'N':
-                    ownValue = 3
                     newBoard = self.WP | self.WB | self.WQ | self.WK | self.WR | self.doMoveHelper(move, self.WN)
                 elif type == 'B':
-                    ownValue = 3
                     newBoard = self.WP | self.WK | self.WN | self.WQ | self.WR | self.doMoveHelper(move, self.WB)
                 elif type == 'R':
-                    ownValue = 5
                     newBoard = self.WP | self.WB | self.WQ | self.WK | self.WN | self.doMoveHelper(move, self.WR)
                 elif type == 'Q':
-                    ownValue = 9
                     newBoard = self.WP | self.WB | self.WR | self.WK | self.WN | self.doMoveHelper(move, self.WQ)
                 elif type == 'p':
-                    ownValue = 1
                     newBoard = self.BB | self.BK | self.BN | self.BQ | self.BR | self.doMoveHelper(move, self.BP)
                 elif type == 'n':
-                    ownValue = 3
                     newBoard = self.BP | self.BB | self.BQ | self.BK | self.BR | self.doMoveHelper(move, self.BN)
                 elif type == 'b':
-                    ownValue = 3
                     newBoard = self.BP | self.BK | self.BN | self.BQ | self.BR | self.doMoveHelper(move, self.BB)
                 elif type == 'r':
-                    ownValue = 5
                     newBoard = self.BP | self.BB | self.BQ | self.BK | self.BN | self.doMoveHelper(move, self.BR)
                 elif type == 'q':
-                    ownValue = 9
                     newBoard = self.BP | self.BB | self.BR | self.BK | self.BN | self.doMoveHelper(move, self.BQ)
                 safe = self.leavesNotInCheck(self.isWhiteTurn, newBoard, move['to'])
                 if safe:
-                    move['score'] = self.evaluateMove(self.isWhiteTurn, ownValue, move['to'])
                     newMoves.append(move)
         return sorted(newMoves, key=lambda x: x.get('score', 0), reverse=True)
 
